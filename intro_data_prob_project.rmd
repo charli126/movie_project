@@ -1,0 +1,123 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+```
+
+
+### Load data
+
+```{r load-data}
+load("brfss2013.RData")
+
+```
+
+
+* * *
+
+## Part 1: Data
+
+The Behavioral Risk Factor Surveillance System (BRFSS) is an ongoing collaborative project between all of the states in the United States (US) and participating US territories and the Centers for Disease Control and Prevention (CDC). The BRFSS objective is to collect uniform, state-specific data on preventive health practices and risk behaviors that are linked to chronic diseases, injuries, and preventable infectious diseases that affect the adult population. 
+
+The BRFSS data was collected using random sampling method via landline telephone and cellular telephone-based surveys. Participants to the surveys are non-institutionalized adult population, aged 18 and older, residing in the US. BRFSS is designed to measure participants' behavioral risk factors. The Factors assessed by the BRFSS in 2013 include tobacco use, HIV/AIDS knowledge and prevention, exercise, immunization, health status, healthy days — health-related quality of life, health care access, inadequate sleep, hypertension awareness, cholesterol awareness, chronic health conditions, alcohol consumption, fruits and vegetables consumption, arthritis burden, and seatbelt use. This report is aimed to address three research questions through the analysis of four of these factors: participants' feeling about their general health, gender, sleep, and vegetable consumption.
+
+* * *
+
+## Part 2: Research questions
+
+**Research quesion 1:**
+What is the distribution like for people's feeling about their general health, and how this might differ from males to females? This research question has a very simple goal, which is to observe the trend in how the two genders as recorded in the data feel about their general health. 
+
+**Research quesion 2:**
+How is sleep time related to people's feeling about their general health, and how this might differ from males to females? Sleep is considered essential to health. The assumption behind this question is that lack of sleep affects people's health and how they feel about their health, or vice versa. Therefore this question is intended to test if this assumption is true for both genders. 
+
+**Research quesion 3:**
+What is the relationship among the consumption of dark green vegetables, people's feeling about their general health, and their educational level? It is generally believed that eating more dark green vegetables leads to better health. This research question seeks to find out if the data prove this assumption, as well as if there a correlation between the consumption of dark green vegetable and people's education levels. 
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+**Research quesion 1:**
+
+In BRFSS, the variable that asks about general health is genhlth. This variable asks people to rate their health in general from 1 to 5, from being Excellent, Very good, Good, Fair, to Poor. The first research question is intended to find out what the distribution among five levels is like and how this might differ from male to female. It needs to pointed out that the survey seems to have only recorded the gender as male or female. Therefore in this report only these two genders are compared in the analysis. As shown in the barplot below, the distribtuion among both genders follows a very similar pattern. 
+
+
+```{r}
+barplot(table(brfss2013$genhlth, brfss2013$sex), beside=TRUE, col=terrain.colors(5), legend=TRUE, xlim=c(0,15))+title(ylab="Count")
+```
+
+
+
+**Research quesion 2:**
+The variable sleptim1 asks people, on average, how many sleep do they get in a 24 hour period. The focus of the second research question is to find out how people's sleep time might affect how they feel about their general health, and whether there is any difference between the two genders. The plot below shows that average sleep time decreases as people's feeling about their general health descreases in levels, and this trend is apparent for both female and male participants. 
+
+```{r}
+brfss2013_1<-brfss2013%>%select(genhlth,sleptim1,sex)%>%
+  filter(!is.na(sleptim1), !is.na(genhlth), !is.na(sex))
+
+sleep_health<-brfss2013_1%>%
+  group_by(genhlth, sex)%>%
+  summarize(average_sleeptime=mean(sleptim1))
+
+ggplot(sleep_health, aes(x=genhlth, y=average_sleeptime, color=sex))+geom_point(size=2.5)+ggtitle("Health and sleep")+labs(x="Feeling about general health", y="Average sleep time (hrs)")+theme(plot.title = element_text(hjust=0.5))
+```
+
+
+**Research quesion 3:**
+The third research questions seeks to find out the relationship among the consumption of dark green vegetables, people's feeling about their general health, and their educational level. The three variables are fvgreen, genhlth, and educa, respectively. 
+
+```{r}
+brfss2013_2<-brfss2013%>%
+  select(genhlth, educa, fvgreen)%>%
+  filter(!is.na(genhlth), !is.na(educa), !is.na(fvgreen))
+
+convert_to_days <- function(x) {
+  
+  case_when(
+  x                   <= 100   ~ 0,
+  x                   == 300 ~ 1,
+  as.integer(x / 100) == 1   ~ (x %% 100),
+  as.integer(x / 100) == 2   ~ (x %% 100)/7,
+  as.integer(x / 100) == 3   ~ (x %% 100)/30
+  )
+}
+brfss2013_3<-brfss2013_2%>%
+  mutate(veg_per_day=convert_to_days(fvgreen))%>%
+  group_by(genhlth)%>%
+  summarize(average_veg_consumption=mean(veg_per_day))
+ggplot(brfss2013_3, aes(x=genhlth, y=average_veg_consumption, group=1))+geom_point()+geom_line()+labs(title="Dark green vegetable consumption and health", x="Feeling about health", y="Average vegetable consumption (per day)")+theme(plot.title=element_text(hjust=0.5))
+
+```
+
+The graph above shows the average consumption of dark green vegetables by people who rate their general health as excellent, very good, good, fair, and poor.There is a clear linear relationship between the two varialbes, indicating that, on average, those who think they have excellent health eat the most dark green vegetables, and the vegetable consumption decreases as people's self rating of their general health decreases. 
+
+Next, let's take a look at if there is any correlation between participants' education level and their dark green vegetable consumption. 
+
+
+```{r}
+brfss2013_4<-brfss2013_2%>%
+  mutate(veg_per_day=convert_to_days(fvgreen))%>%
+  group_by(educa)%>%
+  summarize(average_veg_consumption=mean(veg_per_day))
+ggplot(brfss2013_4, aes(x=educa, y=average_veg_consumption,color=educa, group=1))+geom_point()+geom_line(col=("blue"))+scale_x_discrete("Education Level", labels = c("Never attended school or only kindergarten" = "Never attended school","Grades 1 through 8 (Elementary)" = "Elementary",
+  "Grades 9 though 11 (Some high school)" = "Some high school","Grade 12 or GED (High school graduate)" = "High school graduate","College 1 year to 3 years (Some college or technical school)" = "Some college or technical school", "College 4 years or more (College graduate)"="College graduate"), guide=guide_axis(n.dodge = 10))+labs(title="Education level and vegetable consumption", y="Average vegetable consumption")+theme(plot.title=element_text(hjust=0.5))
+```
+
+As shown in the graph above, on average, survey participants whose education level is Elementary and some high school consume the least volume of dark green vegetables per day, after which as the education level increases, there is an upward trend in vegatable consumption as well. One exception to this trend is participants who never attended school, who actually consumed higher volume of dark green vegetables then those who have Elementary school education and some high school education. 
+
+Finally, it needs to be noted that analysis and discussion in this report is based on observation data from the BRFSS 2013 survey. While there seems to be some clear correlation among general health, sleep time, and dark green vegetable consumption, it can not be said that there is any causal relationships among the variables in discussion. 
+

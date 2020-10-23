@@ -1,0 +1,220 @@
+---
+title: "Statistical inference with the GSS data"
+author: "Xia Cui"
+date: "Friday, October 2, 2020"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+```
+
+### Load data
+
+```{r load-data}
+load("gss.Rdata")
+```
+
+
+* * *
+
+## Part 1: Data
+
+The GSS gathers data on contemporary American society in order to monitor and explain trends and constants in attitudes, behaviors, and attributes. It was first conducted in 1972 and was carried out annually until 1994, except in 1979, 1981, and 1992. Since 1994, the GSS has been conducted in even numbered years. The data for this project include responses to a total of 114 variables from the years 1972 to 2012.
+
+The target population of the GSS is adults (18+) living in households in the United States. Before 2004, the survey was restricted to those who can only respond in English. From 2006 to present it has included those able to do the survey in English or Spanish. Additionally, those unable to do the survey in either English or Spanish are out-of-scope. Residents of institutions and group quarters are out-of-scope. Those with mental and/or physical conditions that prevent them from doing the survey, but who live in households are part of the target population and in-scope. Therefore while in general we can consider GSS uses a simple random sampling method, certain populations are excluded from the surveys and therefore any generalizations need to be made with caution. 
+
+The vast majority of GSS data is obtained in face-to-face interviews. Computer-assisted personal interviewing (CAPI) began in the 2002 GSS. Under some conditions when it has proved difficult to arrange an in-person interview with a sampled respondent, GSS interviews may be conducted by telephone. The use of multiple interview schemes allows the data to be more presentative than if relying on a single scheme. 
+
+The target sample size for the annual surveys from 1972 to 1993 was 1500. Since 1994 the GSS has been administered to two samples in even-numbered years, each with a target sample size of 1500, rather than to a single 1500-person sample each year. In 2006, a third sample was added and the sample size was 4510. Furthermore, as noted in the GSS appendix, the samples for the 1972 through to 1974 surveys follows a modified probability design, introducing the quota element at the block level, whereas for later surveys, full probability sample design has been adopted. 
+
+The GSS is an observation study. While its findings can be generalized to the wider American soiety with caution noted above, these can not be considered evidence for any causal relationship among the variables.
+
+* * *
+
+## Part 2: Research question
+
+The analysis in this report seeks to investigate if people's attitudes towards suicide as a result of incurable disease have changed over the years from 1972 to 2012, as well as whether such attitudes differ among people having different religious practice or political views. This research question has been selected because the issue of abortion has always been subject to debate and I'm interested in finding out if and how the situation changed over the years, and whether such attitudes are influenced by people's religion and political views. 
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+To address the research question, 3 variables are selected for analysis. These are: 
+1. attend (how often the participant attends religious services)
+2. polviews (how liberal or conservative the participant considers themselves)
+3. suicide1 (attitude towards suicide if the person has incurable disease)
+
+```{r}
+#correct a typo in one of the levels in polviews
+levels(gss$polviews)[levels(gss$polviews)=="Extrmly Conservative"]<-"Extremely Conservative"
+
+#check the data of the suicide1 variable
+summary(gss$suicide1)
+
+#generate new sub data to investigate people's attitude towards suicide
+gss_suicide<-gss%>%
+  select(year, attend, polviews, suicide1)%>%
+  filter(!is.na(attend),!is.na(polviews),!is.na(suicide1))
+```
+
+
+It needs to be noted that there are two levels for the categorical variable suicide1, "Yes" and "No". The summary data shows a large of number of no responses represented by NA. Without having any further information of how this is the case, for the purpose of this analysis, these values are removed. The next step is to organize the the data sets into contingency tables showing the count of each responses by year and response. 
+
+```{r}
+#calculate the proportion of yes to the survey item 
+year_yes<-prop.table(table(gss_suicide$year, gss_suicide$suicide1), margin=1)%>%round(digits=3)
+
+#plot
+year_yes<-as.data.frame(year_yes)
+year_yes
+ggplot(year_yes, aes(x=Var1, y=Freq, fill=Var2))+geom_bar(stat='identity', position="dodge")+xlab("Year")+ylab("Frequency of yes")+labs(fill="Response")+theme(axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(hjust = 0.5))+ggtitle("Graph 1")
+```
+
+
+
+As graph 1 above shows, the proportion of responding "Yes" to the survey item: do you think a person has the right to end his or her own life if this person has an incurable disease, despite some fluctuation, overall shows an increasing trend, from 37.5% in 1977 to 54.8% in 2012. Part 4 of this report will examine whether this difference can be considered significant. 
+
+
+```{r}
+#calculate the proportion of yes based on the frequency of attending church services 
+attend_yes<-prop.table(table(gss_suicide$attend, gss_suicide$suicide1),margin=1)%>%
+  round(digits=3)
+attend_yes<-as.data.frame(attend_yes)
+
+#Filter out the no response and only use the yes response proportion for plotting
+attend_yes<-attend_yes%>%filter(Var2=="Yes")
+ ggplot(attend_yes,aes(x=Var1, y=Freq))+geom_bar(stat="identity", fill="orange")+xlab("Frequency of attending church")+ylab("Proportion of yes")+theme(axis.text.x = element_text(angle = 45, hjust = 1),plot.title = element_text(hjust = 0.5))+ggtitle("Graph 2")+geom_text(aes(label = Freq))
+```
+
+
+Graph 2 above shows the proportion of saying "Yes" to the survey item across participants who attend church at difference frequencies from 1977 to 2012. Among participants who go to church for less than once a year, 70.5% responded yes. It seems that as the frequency of church attendance increases, the proportion of yes responses among the participants decreases. For those who go to church more than once a week, only 20.6% agree that people who have incurable disease have the right to suicide. Part 4 of this report will analyze if there is indeed a dependent relationship between participants' attitude to the issue and the frequency of them attending church services.
+
+
+```{r}
+#calculate the proportion of yes given people's political views
+pol_yes<-prop.table(table(gss_suicide$polviews, gss_suicide$suicide1), margin=1)%>%
+  round(digits=3)
+pol_yes<-as.data.frame(pol_yes)
+
+#Filter out the no response and only use yes response proportion for plotting
+pol_yes<-pol_yes%>%filter(Var2=="Yes")
+ggplot(pol_yes, aes(x=Var1, y=Freq))+geom_bar(stat="identity", fill="orange")+xlab("Political views")+ylab("Proportion of yes response")+theme(axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(hjust = 0.5))+ggtitle("Graph 3")+geom_text(aes(label = Freq))
+```
+
+
+
+Graph 3 shows the proportion of responding "Yes" across people having different political views. It seems that there is a higher proportion of yes responses among participants who think they are liberal, and a lower proportion among those who consider themselves conservative. Part 4 of this report will examine if political views and participants' attitudes towards suicide are dependent. 
+
+* * *
+
+## Part 4: Inference
+
+Part 3 presents the summary data needed to address the research question: have people's attitudes towards suicide as a result of incurable disease changed over the years from 1972 to 2012? Are such attitudes influenced by people's religious practice and political views? While the initial analysis seems to indicate yes to both inquiries, we need to find out if the differences noticed could be due to chance, or indeed significant. To achieve this, first a hypothesis test will be conducted to see if the there is a significant difference in people's attitude towards suicide between 1977 and 2012. Then a chi-square test for testing independence will be conducted to examine if the attitude to suicide is dependent on political views, or religious practice. 
+
+To find out if people's attitude changed from 1977 to 2012 to suicide as a result of incurable disease, two points of estimates are chosen, the yes proportion in 1977, 37.5% (p1), and that in 2012, 54.8% (p2). The number of participants who responded to this question in is 1208 (n1) in 1977, and 885 (n2)in 2012. As here we are working with two categorical variables and each only has two levels, both hypothesis test and confidence interval method are used to check if there is any significant difference between the two proportions.
+
+The null hypothesis is that people's attitude to suicide hasn't changed: p1=p2. The alternative hypothesis is people's attitude is different: p1!=p2. 
+
+Now let's check if the conditions are met for hypothesis testing and confidence interval of the difference between the two proportions. Judging from the survey description, it's reasonable to believe that participants to the surveys were selected using simple random sampling method and hence they are independent both within and between the groups.It's also reasonable to assume that either of the sample size is less than 10% of the population size. 
+
+Using the pooled proportion, this success-failure condition is satisfied for hypothesis test. Use p1 and p2, the success-failure condition is also satisfied for calculating confidence interval of the difference. The code below shows the calculation process. Significance level for the hypothesis test is 0.05, and the confidence interval is 95%. 
+
+```{r}
+table(gss_suicide$year, gss_suicide$suicide1)
+#decide on the points of estimate: the yes proportion of responses.
+p1<-0.375
+p2<-0.548
+n1<-1208
+n2<-885
+#null hypothesis is p1-p2=0, alternative hypothesis is p1-p2!=0
+#checking success-failure conditions 
+p_pooled<-(453+485)/(1208+885)
+p_pooled
+
+#caculate the standard error se-pooled used for p1-p2 in hypothesis testing
+se1<-sqrt(p_pooled*(1-p_pooled)/n1+p_pooled*(1-p_pooled)/n2)
+se1
+#calculate the standard error used for p1-p2 in calculating confidence intervals
+se2<-sqrt(0.375*(1-0.375)/1208+0.548*(1-0.548)/885)
+se2
+#calculating zscore
+pdiff<-p1-p2
+pdiff
+zscore<-pdiff/se1
+zscore
+#Finding the pvalue of corresponding to the zscore
+pvalue<-pnorm(zscore, lower.tail=TRUE)*2
+pvalue
+
+#Calculating the 95% confidence interval for the difference between p1 and p2
+ci_95<-c("upper"=(p1-p2)+1.96*se2, "lower"=(p1-p2)-1.96*se2)
+ci_95
+
+#alternatively, use the prop.test function
+x<-c(453, 485)
+n<-c(1208, 885)
+prop.test(x, n, p=NULL, alternative=c("two.sided"), conf.level = 0.95, correct = FALSE)
+
+```
+
+
+As shown above, both methods generate the same result. p-value for hypothesis testing of the difference between the two proportions is much smaller than 0.05 and therefore we reject the null hypothesis: there is strong evidence indicating that people's attitude towards abortion has indeed changed from 1977 to 2012. The 95% confidence interval for the difference between the two proportions (p1-p2) is -0.216 and -0.130, meaning we are 95% confident that the proportion of people who agree with suicide because of incurable disease in 1977 is 13% to 21.6% lower than those in 2012. 0 is not within this range. Therefore the result aligns with the hypothesis testing. 
+
+Having tested that there has been a significant change from 1977 to 2012 in people's attitude to suicide because of incurable disease, now let's check if this attitude is dependent on how often people attend to church services. Chi-square test for independence is selected because we are working with two categorical variables and one of them, attend, has more than 2 levels. 
+
+To check the conditions for using chi-square test, it's reasonable to believe that a simple random sampling method is used in collecting survey data, despite the existence of certain bias in sampling as noted in part 1. Therefor we can assume that the independence condition is met. We can also assume the sample size is less than 10% of the population. Chi-square test requires each scenario has at least 5 cases. Therefore we need to remove "never" from the analysis since it's 0 for both yes and no for this option. 
+
+Following this we can see the numbers of yes and no responses presented in the table below for each group of respondents. The null hypothesis is people's response to suicide because of incurable disease is independent on how often they go to church. The alternative hypothesis is that their responses are dependent on how often they go to church. Below shows the process of conducting the chi-square testing for independence. 
+
+```{r}
+#drop the Never level that has 0 response
+gss_suicide1<-gss_suicide%>%
+  filter(attend != "Never")%>%droplevels()
+#table to show the count of yes and no responses for each category
+table(gss_suicide1$attend, gss_suicide1$suicide1)
+chisq<-chisq.test(table(gss_suicide1$attend, gss_suicide1$suicide1))
+chisq
+```
+
+
+Using the significance level 0.05, p-value is incredibly smaller, therefore we reject the null hypothesis that the two variables are independent. There is strong evidence suggesting people's attitude to suicide as a result of incurable disease is related to how often they go to church.
+
+Just out of curiosity, I would like to see the proportion of respondents who go to church at difference frequency over the years survey was conducted from 1977 to 2012 and whether there is noticble difference in such proportion. This is because given the test above showing that people's attitude to suicide are related to their religious practice, the difference in proportion of respondents would have an effect on the overall responses when we consider the difference across years. Here I'm not going to test if there is significant difference in such proportions but just to take a quick look at the results below and keep that in mind. The result shows that the proportion of respondents who go to church at difference frequencies didn't fluctuate much over the years. 
+
+```{r}
+year_attend<-prop.table(table(gss_suicide$year, gss_suicide$attend), margin=1)
+year_attend
+```
+
+
+Last, let's check if this attitude is dependent on people's political views using chi-square test for independence. Chi-square test is again chosen because we are looking at the relationship between two categorical variables and the variable polviews had more than two levels. 
+
+Similar to the previous chi-square test, we can assume that the independence condition is met and the sample size is less than 10% of the population. Chi-square test requires each scenario has at least 5 cases and this condition is also met.  
+
+In the table below we can see the numbers of yes and no responses for each group of respondents. The null hypothesis is people's response to suicide because of incurable disease is independent on their political views. The alternative hypothesis is that their responses are dependent on their political views. Below shows the process of conducting the chi-square testing for independence. 
+
+```{r}
+table(gss_suicide$polviews, gss_suicide$suicide1)
+chisq2<-chisq.test(table(gss_suicide$polviews, gss_suicide$suicide1))
+chisq2
+```
+
+
+As shown in the chi-square output above, the p-value is a lot smaller than the significance level 0.05, and therefore we reject the null hypothesis and conclude that there is strong evidence suggesting that people's views about suicide due to incurable disease and their political views are dependent. 
+
+To conclude, the research question seeks to find out if people's attitude changed between 1977 and 2012 towards suicide with incurable disease. The analysis indeed shows that there is a significant increase in the proportion of yes responses in 2012, compared to 1977. Further more, we are 95% confident that the proportion of people who agree with suicide with incurable disease in 2012 is 13% to 21.6% higher than that in 1977. 
+
+The analysis above also shows that people's attitude to suicide with incurable disease are related to how frequent they go to church, as well as whether they consider themselves more liberal or more conservative. However, as this is an observation study, no causal statements can be made about the relationship among these variables. 
+
+Finally, although the results can be generalized to the wider American society, we need to be aware that the collection of data does exclude certain populations, such as those who live in quarters and those who do not speak English or Spanish. For researchers who are interested in finding out the views of those particular populations, further investigation will be needed. 
